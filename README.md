@@ -1,10 +1,11 @@
-# Restivus [v0.8.12](https://github.com/kahmali/meteor-restivus/blob/devel/CHANGELOG.md#change-log) [![Build Status](https://travis-ci.org/kahmali/meteor-restivus.svg)](https://travis-ci.org/kahmali/meteor-restivus)
+# Restivus [v0.8.13](https://github.com/mvogttech/meteor-restivus/blob/devel/CHANGELOG.md#change-log)
 
 #### REST APIs for the Best of Us!
 
-Restivus makes building REST APIs in Meteor 0.9.0+ easier than ever before! The package is inspired
+Restivus makes building REST APIs in Meteor 2.3.0+ easier than ever before! The package is inspired
 by [RestStop2][reststop2-docs] and [Collection API](https://github.com/crazytoad/meteor-collectionapi),
 and is built on top of [Simple JSON Routes][json-routes] to provide:
+
 - A simple interface for creating REST APIs
 - Easy setup of CRUD endpoints for Mongo Collections
 - User authentication via the API
@@ -58,7 +59,7 @@ and is built on top of [Simple JSON Routes][json-routes] to provide:
   - [Upgrading to 0.7.0](#upgrading-to-070)
   - [Upgrading to 0.6.1](#upgrading-to-061)
 - [Resources](#resources)
-  - [Plugins](#plugins) 
+  - [Plugins](#plugins)
   - [Change Log](#change-log)
   - [Contributing](#contributing)
 
@@ -67,6 +68,7 @@ and is built on top of [Simple JSON Routes][json-routes] to provide:
 ## Installation
 
 You can install Restivus using Meteor's package manager:
+
 ```bash
 > meteor add nimble:restivus
 ```
@@ -77,6 +79,7 @@ Often, the easiest way to explain something is by example, so here's a short exa
 like to create an API with Restivus (keep scrolling for a JavaScript version):
 
 ###### CoffeeScript:
+
 ```coffeescript
 Items = new Mongo.Collection 'items'
 Articles = new Mongo.Collection 'articles'
@@ -120,57 +123,61 @@ if Meteor.isServer
 ```
 
 ###### JavaScript:
+
 ```javascript
-Items = new Mongo.Collection('items');
-Articles = new Mongo.Collection('articles');
+Items = new Mongo.Collection("items");
+Articles = new Mongo.Collection("articles");
 
 if (Meteor.isServer) {
+	// Global API configuration
+	var Api = new Restivus({
+		useDefaultAuth: true,
+		prettyJson: true
+	});
 
-  // Global API configuration
-  var Api = new Restivus({
-    useDefaultAuth: true,
-    prettyJson: true
-  });
+	// Generates: GET, POST on /api/items and GET, PUT, PATCH, DELETE on
+	// /api/items/:id for the Items collection
+	Api.addCollection(Items);
 
-  // Generates: GET, POST on /api/items and GET, PUT, PATCH, DELETE on
-  // /api/items/:id for the Items collection
-  Api.addCollection(Items);
+	// Generates: POST on /api/users and GET, DELETE /api/users/:id for
+	// Meteor.users collection
+	Api.addCollection(Meteor.users, {
+		excludedEndpoints: ["getAll", "put"],
+		routeOptions: {
+			authRequired: true
+		},
+		endpoints: {
+			post: {
+				authRequired: false
+			},
+			delete: {
+				roleRequired: "admin"
+			}
+		}
+	});
 
-  // Generates: POST on /api/users and GET, DELETE /api/users/:id for
-  // Meteor.users collection
-  Api.addCollection(Meteor.users, {
-    excludedEndpoints: ['getAll', 'put'],
-    routeOptions: {
-      authRequired: true
-    },
-    endpoints: {
-      post: {
-        authRequired: false
-      },
-      delete: {
-        roleRequired: 'admin'
-      }
-    }
-  });
-
-  // Maps to: /api/articles/:id
-  Api.addRoute('articles/:id', {authRequired: true}, {
-    get: function () {
-      return Articles.findOne(this.urlParams.id);
-    },
-    delete: {
-      roleRequired: ['author', 'admin'],
-      action: function () {
-        if (Articles.remove(this.urlParams.id)) {
-          return {status: 'success', data: {message: 'Article removed'}};
-        }
-        return {
-          statusCode: 404,
-          body: {status: 'fail', message: 'Article not found'}
-        };
-      }
-    }
-  });
+	// Maps to: /api/articles/:id
+	Api.addRoute(
+		"articles/:id",
+		{ authRequired: true },
+		{
+			get: function () {
+				return Articles.findOne(this.urlParams.id);
+			},
+			delete: {
+				roleRequired: ["author", "admin"],
+				action: function () {
+					if (Articles.remove(this.urlParams.id)) {
+						return { status: "success", data: { message: "Article removed" } };
+					}
+					return {
+						statusCode: 404,
+						body: { status: "fail", message: "Article not found" }
+					};
+				}
+			}
+		}
+	);
 }
 ```
 
@@ -179,12 +186,15 @@ if (Meteor.isServer) {
 Just to clarify some terminology that will be used throughout these docs:
 
 _**(HTTP) Method:**_
+
 - The type of HTTP request (e.g., GET, PUT, POST, etc.)
 
 _**Endpoint:**_
+
 - The function executed when a request is made at a given URL path for a specific HTTP method
 
 _**Route:**_
+
 - A URL path and its set of configurable endpoints
 
 # Writing A Restivus API
@@ -198,27 +208,32 @@ The following configuration options are available when initializing an API using
 `new Restivus(options)`:
 
 ##### `apiPath`
+
 - _String_
 - Default: `'api/'`
 - The base path for your API. If you use `'api'` and add a route called `'users'`, the URL will be
   `https://yoursite.com/api/users/`.
 
 ##### `auth`
+
 - _Object_
-  - `token`  _String_
+
+  - `token` _String_
     - Default: `'services.resume.loginTokens.hashedToken'`
     - The path to the hashed auth token in the `Meteor.user` document. This location will be checked
       for a matching token if one is returned in `auth.user()`.
-  - `user`  _Function_
+  - `user` _Function_
+
     - Default: Get user ID and auth token from `X-User-Id` and `X-Auth-Token` headers
-        ```javascript
-        function() {
-          return {
-            userId: this.request.headers['x-user-id'],
-            token: Accounts._hashLoginToken(this.request.headers['x-auth-token'])
-          };
-        }
-        ```
+
+      ```javascript
+      function() {
+        return {
+          userId: this.request.headers['x-user-id'],
+          token: Accounts._hashLoginToken(this.request.headers['x-auth-token'])
+        };
+      }
+      ```
 
     - Provides one of two levels of authentication, depending on the data returned. The context
       within this function is the [endpoint context](#endpoint-context) without `this.user` and
@@ -238,20 +253,21 @@ The following configuration options are available when initializing an API using
           returned, any `userId` and `token` will be ignored, as it's assumed that you have already
           successfully authenticated the user (by whatever means you deem necessary). The given user
           is simply attached to the [endpoint context](#endpoint-context), no questions asked.
-          
-      For either level of auth described above, you can optionally return a custom error response by 
-      providing that response in an `error` field of your response object. The `error` value can be 
-      [any valid response](#response-data). If an `error` field exists in the object returned from 
-      your custom auth function, all other fields will be ignored. Do **not** provide an `error` 
-      value if you intend for the authentication to pass successfully.
+          For either level of auth described above, you can optionally return a custom error response by
+          providing that response in an `error` field of your response object. The `error` value can be
+          [any valid response](#response-data). If an `error` field exists in the object returned from
+          your custom auth function, all other fields will be ignored. Do **not** provide an `error`
+          value if you intend for the authentication to pass successfully.
 
 ##### `defaultHeaders`
+
 - _Object_
 - Default: `{ 'Content-Type': 'application/json' }`
 - The response headers that will be returned from every endpoint by default. These can be overridden
   by [returning `headers` of the same name from any endpoint](#response-data).
 
 ##### `defaultOptionsEndpoint`
+
 - [_Endpoint_](#endpoint-configuration)
 - Default: undefined
 - If an endpoint is provided, it will be used as the OPTIONS endpoint on all routes, except those
@@ -260,6 +276,7 @@ The following configuration options are available when initializing an API using
   all routes.
 
 ##### `enableCors`
+
 - _Boolean_
 - Default: `true`
 - If true, enables cross-origin resource sharing ([CORS]). This allows your API to receive requests
@@ -267,6 +284,7 @@ The following configuration options are available when initializing an API using
   is being hosted. _Note: Only applies to requests originating from browsers)._
 
 ##### `onLoggedIn`
+
 - _Function_
 - Default: `undefined`
 - A hook that runs once a user has been successfully logged into their account via the `/login`
@@ -274,6 +292,7 @@ The following configuration options are available when initializing an API using
   returned data will be added to the response body as `data.extra`.
 
 ##### `onLoggedOut`
+
 - _Function_
 - Default: `undefined`
 - Same as onLoggedIn, but runs once a user has been successfully logged out of their account via
@@ -281,40 +300,45 @@ The following configuration options are available when initializing an API using
   endpoints. Any returned data will be added to the response body as `data.extra`.
 
 ##### `prettyJson`
+
 - _Boolean_
 - Default: `false`
 - If `true`, render formatted JSON in response.
 
 ##### `useDefaultAuth`
+
 - _Boolean_
 - Default: `false`
 - If `true`, `POST /login` and `GET /logout` endpoints are added to the API. See [Authenticating]
   (#authenticating) for details on using these endpoints.
 
 ##### `version`
+
 - _String_
 - Default: `null`
 - URL path versioning is the only type of API versioning currently available, so if a version is
   provided, it's appended to the base path of all routes that belong to that API
-    ```javascript
-    // Base URL path: my-api/v1/
-    ApiV1 = new Restivus({
-      apiPath: 'my-api/',
-      version: 'v1'
-    });
 
-    // Base URL path: my-api/v2/
-    ApiV2 = new Restivus({
-      apiPath: 'my-api/',
-      version: 'v2'
-    });
-    ```
+  ```javascript
+  // Base URL path: my-api/v1/
+  ApiV1 = new Restivus({
+  	apiPath: "my-api/",
+  	version: "v1"
+  });
 
-Here's a sample configuration with the complete set of options: 
+  // Base URL path: my-api/v2/
+  ApiV2 = new Restivus({
+  	apiPath: "my-api/",
+  	version: "v2"
+  });
+  ```
+
+Here's a sample configuration with the complete set of options:
 
 **Warning! For demo purposes only - using this configuration is not recommended!**
 
 ###### CoffeeScript
+
 ```coffeescript
   new Restivus
     apiPath: 'my-api/'
@@ -333,31 +357,32 @@ Here's a sample configuration with the complete set of options:
 ```
 
 ###### JavaScript
+
 ```javascript
-  new Restivus({
-    apiPath: 'my-api/',
-    auth: {
-      token: 'auth.apiKey',
-      user: function () {
-        return {
-          userId: this.request.headers['user-id'],
-          token: this.request.headers['login-token']
-        };
-      }
-    },
-    defaultHeaders: {
-      'Content-Type': 'application/json'
-    },
-    onLoggedIn: function () {
-      console.log(this.user.username + ' (' + this.userId + ') logged in');
-    },
-    onLoggedOut: function () {
-      console.log(this.user.username + ' (' + this.userId + ') logged out');
-    },
-    prettyJson: true,
-    useDefaultAuth: true,
-    version: 'v1'
-  });
+new Restivus({
+	apiPath: "my-api/",
+	auth: {
+		token: "auth.apiKey",
+		user: function () {
+			return {
+				userId: this.request.headers["user-id"],
+				token: this.request.headers["login-token"]
+			};
+		}
+	},
+	defaultHeaders: {
+		"Content-Type": "application/json"
+	},
+	onLoggedIn: function () {
+		console.log(this.user.username + " (" + this.userId + ") logged in");
+	},
+	onLoggedOut: function () {
+		console.log(this.user.username + " (" + this.userId + ") logged out");
+	},
+	prettyJson: true,
+	useDefaultAuth: true,
+	version: "v1"
+});
 ```
 
 ## Defining Collection Routes
@@ -368,10 +393,12 @@ Well, you're in luck, because this is almost _too easy_ with Restivus! All avail
 `Restivus#addCollection()`. This generates two routes by default:
 
 **`/api/<collection>`**
+
 - Operations on the entire collection
--  `GET` and `POST`
+- `GET` and `POST`
 
 **`/api/<collection>/:id`**
+
 - Operations on a single entity within the collection
 - `GET`, `PUT`, `PATCH` and `DELETE`
 
@@ -393,6 +420,7 @@ The top level properties of the options apply to both routes that will be genera
 (`/api/<collection>` and `/api/<collection>/:id`):
 
 ##### `path`
+
 - _String_
 - Default: Name of the collection (the name passed to `new Mongo.Collection()`, or `'users'` for
   `Meteor.users`)
@@ -400,6 +428,7 @@ The top level properties of the options apply to both routes that will be genera
   `'api/other-path'` and `'api/other-path/:id'`
 
 ##### `routeOptions`
+
 - _Object_
 - `authRequired` _Boolean_
   - Default: `false`
@@ -415,12 +444,14 @@ The top level properties of the options apply to both routes that will be genera
     the [`alanning:roles`][alanning-roles] package.
 
 ##### `excludedEndpoints`
+
 - _String or Array of Strings_
 - Default: `undefined`
 - The names of the endpoints that should _not_ be generated (see the `endpoints` option below for a
   complete list of endpoint names).
 
 ##### `endpoints`
+
 - _Object_
 - Default: `undefined` (all available endpoints generated)
 - Each property of this object corresponds to a REST endpoint. In addition to the
@@ -460,6 +491,7 @@ any default route options. If you need finer control over your endpoints, each c
 object containing the following properties:
 
 ##### `authRequired`
+
 - _Boolean_
 - Default: `undefined`
 - If true, this endpoint will return a `401` if the user is not properly [authenticated]
@@ -467,6 +499,7 @@ object containing the following properties:
   route.
 
 ##### `roleRequired`
+
 - _String or Array of Strings_
 - Default: `undefined` (no role required)
 - The acceptable user roles for this endpoint (e.g.,
@@ -478,13 +511,13 @@ object containing the following properties:
   package.
 
 ##### `action`
+
 - _Function_
 - Default: `undefined` (Default endpoint generated)
 - If you need to completely override the default endpoint behavior, you can provide a function
   that will be executed when the corresponding request is made. No parameters are passed; instead,
   `this` contains the [endpoint context](#endpoint-context), with properties including the URL and
   query parameters.
-
 
 ### Request and Response Structure
 
@@ -493,7 +526,9 @@ an identical structure to errors. Successful responses will have a status code o
 otherwise indicated. Sample requests and responses for each endpoint are included below:
 
 #### `post`
+
 Request:
+
 ```bash
 curl -X POST http://localhost:3000/api/articles/ -d "title=Witty Title" -d "author=Jack Rose"
 ```
@@ -501,109 +536,125 @@ curl -X POST http://localhost:3000/api/articles/ -d "title=Witty Title" -d "auth
 Response:
 
 Status Code: `201`
+
 ```json
 {
-  "status": "success",
-  "data": {
-    "_id": "LrcEYNojn5N7NPRdo",
-    "title": "Witty Title",
-    "author": "Jack Rose"
-  }
+	"status": "success",
+	"data": {
+		"_id": "LrcEYNojn5N7NPRdo",
+		"title": "Witty Title",
+		"author": "Jack Rose"
+	}
 }
 ```
 
 #### `getAll`
+
 Request:
+
 ```bash
 curl -X GET http://localhost:3000/api/articles/
 ```
 
 Response:
+
 ```json
 {
-  "status": "success",
-  "data": [
-    {
-      "_id": "LrcEYNojn5N7NPRdo",
-      "title": "Witty Title!",
-      "author": "Jack Rose",
-    },
-    {
-      "_id": "7F89EFivTnAcPMcY5",
-      "title": "Average Stuff",
-      "author": "Joe Schmoe",
-    }
-  ]
+	"status": "success",
+	"data": [
+		{
+			"_id": "LrcEYNojn5N7NPRdo",
+			"title": "Witty Title!",
+			"author": "Jack Rose"
+		},
+		{
+			"_id": "7F89EFivTnAcPMcY5",
+			"title": "Average Stuff",
+			"author": "Joe Schmoe"
+		}
+	]
 }
 ```
 
 #### `get`
+
 Request:
+
 ```bash
 curl -X GET http://localhost:3000/api/articles/LrcEYNojn5N7NPRdo
 ```
 
 Response:
+
 ```json
 {
-  "status": "success",
-  "data": {
-    "_id": "LrcEYNojn5N7NPRdo",
-    "title": "Witty Title",
-    "author": "Jack Rose",
-  }
+	"status": "success",
+	"data": {
+		"_id": "LrcEYNojn5N7NPRdo",
+		"title": "Witty Title",
+		"author": "Jack Rose"
+	}
 }
 ```
 
 #### `put`
+
 Request:
+
 ```bash
 curl -X PUT http://localhost:3000/api/articles/LrcEYNojn5N7NPRdo -d "title=Wittier Title" -d "author=Jaclyn Rose"
 ```
 
 Response:
+
 ```json
 {
-  "status": "success",
-  "data": {
-    "_id": "LrcEYNojn5N7NPRdo",
-    "title": "Wittier Title",
-    "author": "Jaclyn Rose"
-  }
+	"status": "success",
+	"data": {
+		"_id": "LrcEYNojn5N7NPRdo",
+		"title": "Wittier Title",
+		"author": "Jaclyn Rose"
+	}
 }
 ```
 
 #### `patch`
+
 Request:
+
 ```bash
 curl -X PATCH http://localhost:3000/api/articles/LrcEYNojn5N7NPRdo -d "author=J. K. Rowling"
 ```
 
 Response:
+
 ```json
 {
-  "status": "success",
-  "data": {
-    "_id": "LrcEYNojn5N7NPRdo",
-    "title": "Wittier Title",
-    "author": "J. K. Rowling"
-  }
+	"status": "success",
+	"data": {
+		"_id": "LrcEYNojn5N7NPRdo",
+		"title": "Wittier Title",
+		"author": "J. K. Rowling"
+	}
 }
 ```
 
 #### `delete`
+
 Request:
+
 ```bash
 curl -X DELETE http://localhost:3000/api/articles/LrcEYNojn5N7NPRdo
 ```
 
 Response:
+
 ```json
 {
-  "status": "success",
-  "data": {
-    "message": "Item removed"
-  }
+	"status": "success",
+	"data": {
+		"message": "Item removed"
+	}
 }
 ```
 
@@ -618,23 +669,27 @@ the `delete` endpoint. Below are sample requests and responses for the users
 collection.
 
 Create collection:
+
 ```javascript
 Api.addCollection(Meteor.users);
 ```
 
 #### `post`
+
 Request:
 `POST http://localhost:3000/api/users`
+
 ```json
 {
-  "email": "jack@mail.com",
-  "password": "password",
-  "profile": {
-    "firstName": "Jack",
-    "lastName": "Rose"
-  }
+	"email": "jack@mail.com",
+	"password": "password",
+	"profile": {
+		"firstName": "Jack",
+		"lastName": "Rose"
+	}
 }
 ```
+
 _Note: The only fields that will be recognized in the request body when creating a new user are
 `email`, `username`, `password`, and `profile`. These map directly to the parameters of the same
 name in the [Accounts.createUser()](http://docs.meteor.com/#/full/accounts_createuser) method, so
@@ -643,109 +698,123 @@ check that out for more information on how those fields are handled._
 Response:
 
 Status Code: `201`
+
 ```json
 {
-  "status": "success",
-  "data": {
-    "_id": "oFpdgAMMr7F5A7P3a",
-    "profile": {
-      "firstName": "Jack",
-      "lastName": "Rose"
-    }
-  }
+	"status": "success",
+	"data": {
+		"_id": "oFpdgAMMr7F5A7P3a",
+		"profile": {
+			"firstName": "Jack",
+			"lastName": "Rose"
+		}
+	}
 }
 ```
 
 #### `getAll`
+
 Request:
+
 ```bash
 curl -X GET http://localhost:3000/api/users/
 ```
 
 Response:
+
 ```json
 {
-  "status": "success",
-  "data": [
-    {
-      "_id": "nBTnv83sTrf38fFTi",
-      "profile": {
-        "firstName": "Anthony",
-        "lastName": "Reid"
-      }
-    },
-    {
-      "_id": "oFpdgAMMr7F5A7P3a",
-      "profile": {
-        "firstName": "Jack",
-        "lastName": "Rose"
-      }
-    }
-  ]
+	"status": "success",
+	"data": [
+		{
+			"_id": "nBTnv83sTrf38fFTi",
+			"profile": {
+				"firstName": "Anthony",
+				"lastName": "Reid"
+			}
+		},
+		{
+			"_id": "oFpdgAMMr7F5A7P3a",
+			"profile": {
+				"firstName": "Jack",
+				"lastName": "Rose"
+			}
+		}
+	]
 }
 ```
 
 #### `get`
+
 Request:
+
 ```bash
 curl -X GET http://localhost:3000/api/users/oFpdgAMMr7F5A7P3a
 ```
 
 Response:
+
 ```json
 {
-  "status": "success",
-  "data": {
-    "_id": "oFpdgAMMr7F5A7P3a",
-    "profile": {
-      "firstName": "Jack",
-      "lastName": "Rose"
-    }
-  }
+	"status": "success",
+	"data": {
+		"_id": "oFpdgAMMr7F5A7P3a",
+		"profile": {
+			"firstName": "Jack",
+			"lastName": "Rose"
+		}
+	}
 }
 ```
 
 #### `put`
+
 Request:
 `PUT http://localhost:3000/api/users/oFpdgAMMr7F5A7P3a`
+
 ```json
 {
-    "firstName": "Jaclyn",
-    "age": 25
+	"firstName": "Jaclyn",
+	"age": 25
 }
 ```
+
 _Note: The data included in the request body will completely overwrite the `user.profile` field of
 the User document_
 
 Response:
+
 ```json
 {
-  "status": "success",
-  "data": {
-    "_id": "oFpdgAMMr7F5A7P3a",
-    "profile": {
-      "firstName": "Jaclyn",
-      "age": "25"
-    }
-  }
+	"status": "success",
+	"data": {
+		"_id": "oFpdgAMMr7F5A7P3a",
+		"profile": {
+			"firstName": "Jaclyn",
+			"age": "25"
+		}
+	}
 }
 ```
 
 #### `delete`
+
 Request:
+
 ```bash
 curl -X DELETE http://localhost:3000/api/users/oFpdgAMMr7F5A7P3a
 ```
+
 Response:
+
 ```json
 {
-  "status": "success",
-  "data": {
-    "message": "User removed"
-  }
+	"status": "success",
+	"data": {
+		"message": "User removed"
+	}
 }
 ```
-
 
 ## Defining Custom Routes
 
@@ -768,19 +837,22 @@ inside of the GET endpoint function we can get the actual value of the `_id` fro
 `this.urlParams._id`. In this case `this.urlParams._id => 5`.
 
 ###### CoffeeScript:
+
 ```coffeescript
 # Given a URL like "/post/5"
 Api.addRoute '/post/:_id',
   get: ->
     id = @urlParams._id # "5"
 ```
+
 ###### JavaScript:
+
 ```javascript
 // Given a URL "/post/5"
-Api.addRoute('/post/:_id', {
-  get: function () {
-    var id = this.urlParams._id; // "5"
-  }
+Api.addRoute("/post/:_id", {
+	get: function () {
+		var id = this.urlParams._id; // "5"
+	}
 });
 ```
 
@@ -789,6 +861,7 @@ parameter. If you navigate to the URL `/post/5/comments/100` then inside your en
 `this.urlParams._id => 5` and `this.urlParams.commentId => 100`.
 
 ###### CoffeeScript:
+
 ```coffeescript
 # Given a URL "/post/5/comments/100"
 Api.addRoute '/post/:_id/comments/:commentId',
@@ -798,19 +871,21 @@ Api.addRoute '/post/:_id/comments/:commentId',
 ```
 
 ###### JavaScript:
+
 ```javascript
 // Given a URL "/post/5/comments/100"
-Api.addRoute('/post/:_id/comments/:commentId', {
-  get: function () {
-    var id = this.urlParams._id; // "5"
-    var commentId = this.urlParams.commentId; // "100"
-  }
+Api.addRoute("/post/:_id/comments/:commentId", {
+	get: function () {
+		var id = this.urlParams._id; // "5"
+		var commentId = this.urlParams.commentId; // "100"
+	}
 });
 ```
 
 If there is a query string in the URL, you can access that using `this.queryParams`.
 
 ###### Coffeescript:
+
 ```coffeescript
 # Given the URL: "/post/5?q=liked#hash_fragment"
 Api.addRoute '/post/:_id',
@@ -820,26 +895,30 @@ Api.addRoute '/post/:_id',
 ```
 
 ###### JavaScript:
+
 ```javascript
 // Given the URL: "/post/5?q=liked#hash_fragment"
-Api.addRoute('/post/:_id', {
-  get: function () {
-    var id = this.urlParams._id;
-    var query = this.queryParams; // query.q -> "liked"
-  }
+Api.addRoute("/post/:_id", {
+	get: function () {
+		var id = this.urlParams._id;
+		var query = this.queryParams; // query.q -> "liked"
+	}
 });
 ```
 
 ### Route Options
 
 The following options are available in `Restivus#addRoute` (as the 2nd, optional parameter):
+
 ##### `authRequired`
+
 - _Boolean_
 - Default: `false`
 - If true, all endpoints on this route will return a `401` if the user is not properly
   [authenticated](#authenticating).
 
 ##### `roleRequired`
+
 - _String or Array of Strings_
 - Default: `undefined` (no role required)
 - A string or array of strings corresponding to the acceptable user roles for all endpoints on
@@ -855,6 +934,7 @@ The following options are available in `Restivus#addRoute` (as the 2nd, optional
 The last parameter of `Restivus#addRoute` is an object with properties corresponding to the supported
 HTTP methods. At least one method must have an endpoint defined on it. The following endpoints can
 be defined in Restivus:
+
 - `get`
 - `post`
 - `put`
@@ -875,11 +955,13 @@ An `action` is required when configuring an endpoint. All other configuration se
 and will get their default values from the route.
 
 ##### `action`
+
 - _Function_
 - Default: `undefined`
 - A function that will be executed when a request is made for the corresponding HTTP method.
 
 ##### `authRequired`
+
 - _String_
 - Default: [`Route.authRequired`](#authrequired-1)
 - If true, this endpoint will return a `401` if the user is not properly
@@ -887,6 +969,7 @@ and will get their default values from the route.
   route.
 
 ##### `roleRequired`
+
 - _String or Array of Strings_
 - Default: [`Route.roleRequired`](#rolerequired-1)
 - The acceptable user roles for this endpoint (e.g.,
@@ -898,6 +981,7 @@ and will get their default values from the route.
   package.
 
 ###### CoffeeScript
+
 ```coffeescript
 Api.addRoute 'articles', {authRequired: true},
   get:
@@ -917,31 +1001,37 @@ Api.addRoute 'articles', {authRequired: true},
 ```
 
 ###### JavaScript
+
 ```javascript
-Api.addRoute('articles', {authRequired: true}, {
-  get: {
-    authRequired: false,
-    action: function () {
-      // GET api/articles
-    }
-  },
-  post: function () {
-    // POST api/articles
-  },
-  put: function () {
-    // PUT api/articles
-  },
-  patch: function () {
-    // PATCH api/articles
-  },
-  delete: function () {
-    // DELETE api/articles
-  },
-  options: function () {
-    // OPTIONS api/articles
-  }
-});
+Api.addRoute(
+	"articles",
+	{ authRequired: true },
+	{
+		get: {
+			authRequired: false,
+			action: function () {
+				// GET api/articles
+			}
+		},
+		post: function () {
+			// POST api/articles
+		},
+		put: function () {
+			// PUT api/articles
+		},
+		patch: function () {
+			// PATCH api/articles
+		},
+		delete: function () {
+			// DELETE api/articles
+		},
+		options: function () {
+			// OPTIONS api/articles
+		}
+	}
+);
 ```
+
 In the above examples, all the endpoints except the GETs will require [authentication]
 (#authenticating).
 
@@ -950,34 +1040,41 @@ In the above examples, all the endpoints except the GETs will require [authentic
 Each endpoint has access to:
 
 ##### `this.user`
+
 - _Meteor.user_
 - The authenticated `Meteor.user`. Only available if `authRequired` is `true` and a user is
   successfully authenticated. If not, it will be `undefined`.
 
 ##### `this.userId`
+
 - _String_
 - The authenticated user's `Meteor.userId`. Only available if `authRequired` is `true` and a user is
   successfully authenticated. If not, it will be `undefined`.
 
 ##### `this.urlParams`
+
 - _Object_
 - Non-optional parameters extracted from the URL. A parameter `id` on the path `articles/:id` would be
   available as `this.urlParams.id`.
 
 ##### `this.queryParams`
+
 - _Object_
 - Optional query parameters from the URL. Given the URL `https://yoursite.com/articles?likes=true`,
   `this.queryParams.likes => true`.
 
 ##### `this.bodyParams`
+
 - _Object_
 - Parameters passed in the request body. Given the request body `{ "friend": { "name": "Jack" } }`,
   `this.bodyParams.friend.name => "Jack"`.
 
 ##### `this.request`
+
 - [_Node request object_][node-request]
 
 ##### `this.response`
+
 - [_Node response object_][node-response]
 - If you handle the response yourself using `this.response.write()` or `this.response.writeHead()`
   you **must** call `this.done()`. In addition to preventing the default response (which will throw
@@ -985,21 +1082,23 @@ Each endpoint has access to:
   `this.response.end()`, so you can safely omit that from your endpoint.
 
 ##### `this.done()`
+
 - _Function_
 - **Must** be called after handling the response manually with `this.response.write()` or
   `this.response.writeHead()`. This must be called immediately before returning from an endpoint.
 
   ```javascript
-  Api.addRoute('manualResponse', {
-    get: function () {
-      console.log('Testing manual response');
-      this.response.write('This is a manual response');
-      this.done();  // Must call this immediately before return!
-    }
+  Api.addRoute("manualResponse", {
+  	get: function () {
+  		console.log("Testing manual response");
+  		this.response.write("This is a manual response");
+  		this.done(); // Must call this immediately before return!
+  	}
   });
   ```
 
 ##### `this.<endpointOption>`
+
 All [endpoint configuration options](#endpoint-configuration-1) can be accessed by name (e.g.,
 `this.roleRequired`). Within an endpoint, all options have been completely resolved, meaning all
 configuration options set on an endpoint's route will already be applied to the endpoint as
@@ -1010,38 +1109,44 @@ default will already have been applied from the route.
 #### Response Data
 
 You can return a raw string:
+
 ```javascript
 return "That's current!";
 ```
 
 A JSON object:
+
 ```javascript
-return { json: 'object' };
+return { json: "object" };
 ```
 
 A raw array:
+
 ```javascript
-return [ 'red', 'green', 'blue' ];
+return ["red", "green", "blue"];
 ```
 
 Or include a `statusCode` or `headers`. At least one must be provided along with the `body`:
+
 ```javascript
 return {
-  statusCode: 404,
-  headers: {
-    'Content-Type': 'text/plain',
-    'X-Custom-Header': 'custom value'
-  },
-  body: 'There is nothing here!'
+	statusCode: 404,
+	headers: {
+		"Content-Type": "text/plain",
+		"X-Custom-Header": "custom value"
+	},
+	body: "There is nothing here!"
 };
 ```
 
 All responses contain the following defaults, which will be overridden with any provided values:
 
 ##### statusCode
+
 - Default: `200`
 
 ##### headers
+
 - Default:
   - `Content-Type`: `application/json`
   - `Access-Control-Allow-Origin`: `*`
@@ -1051,7 +1156,6 @@ All responses contain the following defaults, which will be overridden with any 
       [disabled by default](https://github.com/kahmali/meteor-restivus#enablecors), or also by
       returning a header of the same name with a domain specified (usually the domain the API is
       being hosted on).
-
 
 ## Versioning an API
 
@@ -1067,6 +1171,7 @@ configuration options. Here's a [good write-up]
 different API versioning strategies.
 
 ###### CoffeeScript
+
 ```coffeescript
 # Configure first version of the API
 ApiV1 = new Restivus
@@ -1099,43 +1204,44 @@ ApiV2.addRoute 'custom',
 ```
 
 ###### JavaScript
+
 ```javascript
 // Configure first version of the API
 var ApiV1 = new Restivus({
-  version: 'v1',
-  useDefaultAuth: true,
-  prettyJson: true
+	version: "v1",
+	useDefaultAuth: true,
+	prettyJson: true
 });
 
 // Maps to api/v1/items and api/v1/items/:id
 ApiV1.addCollection(Items, {
-  routeOptions: { authRequired: true }
+	routeOptions: { authRequired: true }
 });
 
 // Maps to api/v1/custom
-ApiV1.addRoute('custom', {
-  get: function () {
-    return 'get something';
-  }
+ApiV1.addRoute("custom", {
+	get: function () {
+		return "get something";
+	}
 });
 
 // Configure another version of the API (with a different set of config options if needed)
 var ApiV2 = new Restivus({
-  version: 'v2',
-  enableCors: false
+	version: "v2",
+	enableCors: false
 });
 
 // Maps to api/v2/items and api/v2/items/:id (with auth requirement removed in this version)
 ApiV2.addCollection(Items);
 
 // Maps to api/v2/custom (notice the different return value)
-ApiV2.addRoute('custom', {
-  get: function () {
-    return {
-      status: 'success',
-      data: 'get something different'
-    };
-  }
+ApiV2.addRoute("custom", {
+	get: function () {
+		return {
+			status: "success",
+			data: "get something different"
+		};
+	}
 });
 ```
 
@@ -1154,6 +1260,7 @@ The following uses the above code.
 
 We can call our `POST /articles/:id/comments` endpoint the following way. Note the /api/ in the URL
 (defined with the api_path option above):
+
 ```bash
 curl -d "message=Some message details" http://localhost:3000/api/articles/3/comments
 ```
@@ -1176,6 +1283,7 @@ If you have `useDefaultAuth` set to `true`, you now have a `POST /api/login` end
 `userId` and `authToken`. You must save these, and include them in subsequent requests. In addition
 to the `password`, the login endpoint requires one of the following parameters (via the request
 body):
+
 - `email`: An email address associated with your `Meteor.user` account
 - `username`: The username associated with your `Meteor.user` account
 - `user`: **Note: This is for legacy purposes only. It is recommended to use one of the options
@@ -1190,11 +1298,13 @@ curl http://localhost:3000/api/login/ -d "username=test&password=password"
 ```
 
 The password can be SHA-256 hashed on the client side, in which case your request would look like
+
 ```bash
 curl http://localhost:3000/api/login/ -d "username=test&password=sha-256-password&hashed=true"
 ```
 
 And the response will look like
+
 ```javascript
 { status: "success", data: {authToken: "f2KpRW7KeN9aPmjSZ", userId: fbdpsNf4oHiX79vMJ} }
 ```
@@ -1206,6 +1316,7 @@ You'll need to save the `userId` and `token` on the client, for subsequent authe
 You also have an authenticated `POST /api/logout` endpoint for logging a user out. If successful, the
 auth token that is passed in the request header will be invalidated (removed from the user account),
 so it will not work in any subsequent requests.
+
 ```bash
 curl http://localhost:3000/api/logout -X POST -H "X-Auth-Token: f2KpRW7KeN9aPmjSZ" -H "X-User-Id: fbdpsNf4oHiX79vMJ"
 ```
@@ -1214,6 +1325,7 @@ curl http://localhost:3000/api/logout -X POST -H "X-Auth-Token: f2KpRW7KeN9aPmjS
 
 For any endpoints that require the default authentication, you must include the `userId` and
 `authToken` with each request under the following headers:
+
 - X-User-Id
 - X-Auth-Token
 
@@ -1224,16 +1336,19 @@ curl -H "X-Auth-Token: f2KpRW7KeN9aPmjSZ" -H "X-User-Id: fbdpsNf4oHiX79vMJ" http
 # Upgrading Restivus
 
 To update Restivus to the latest version:
+
 ```bash
 > meteor update nimble:restivus
 ```
 
 Or to update Restivus to a specific version:
+
 ```bash
 > meteor add nimble:restivus@=<version_number>
 ```
 
 For example, to update restivus to v0.7.0:
+
 ```bash
 > meteor add nimble:restivus@=0.7.0
 ```
@@ -1290,6 +1405,7 @@ that Restivus should no longer [interfere with other routers]
 from `iron:router` to `simple:json-routes` in Restivus!
 
 Some other notable changes are:
+
 - The `deleteAll` collection endpoint has been removed, as it had the potential to be quite
   destructive, and is not a standard REST endpoint
 - `useAuth` API config option renamed to `useDefaultAuth`
@@ -1328,6 +1444,7 @@ with that comes a few API-breaking changes:
 ## Plugins
 
 [Restivus Swagger](https://github.com/apinf/restivus-swagger)
+
 - Define and generate [Swagger 2.0](http://swagger.io/) documentation for Restivus API
 
 ## Change Log
@@ -1349,6 +1466,7 @@ work on [`simple:json-routes`][json-routes], including the Restivus conversion f
 Router][iron-router].
 
 Also, thanks to the following projects, which RestStop2 was inspired by:
+
 - [gkoberger/meteor-reststop](https://github.com/gkoberger/meteor-reststop)
 - [tmeasday/meteor-router](https://github.com/tmeasday/meteor-router)
 - [crazytoad/meteor-collectionapi](https://github.com/crazytoad/meteor-collectionapi)
@@ -1358,16 +1476,15 @@ Also, thanks to the following projects, which RestStop2 was inspired by:
 MIT License. See [LICENSE](https://github.com/kahmali/meteor-restivus/blob/master/LICENSE) for
 details.
 
-
-[alanning-roles]:       https://github.com/alanning/meteor-roles                                  "Meteor Roles Package"
-[apidoc]:               http://apidocjs.com/                                                      "apiDoc"
-[cors]:                 https://developer.mozilla.org/en-US/docs/Web/HTTP/Access_control_CORS     "Cross Origin Resource Sharing (CORS)"
-[iron-router]:          https://github.com/iron-meteor/iron-router                                "Iron Router"
-[jsend]:                http://labs.omniti.com/labs/jsend                                         "JSend REST API Standard"
-[json-routes]:          https://github.com/stubailo/meteor-rest/tree/master/packages/json-routes  "Simple JSON Routes"
-[node-request]:         https://nodejs.org/api/http.html#http_http_incomingmessage                 "Node Request Object Docs"
-[node-response]:        https://nodejs.org/api/http.html#http_class_http_serverresponse            "Node Response Object Docs"
-[restivus-change-log]:  https://github.com/kahmali/meteor-restivus/blob/master/CHANGELOG.md       "Restivus Change Log"
-[restivus-issues]:      https://github.com/kahmali/meteor-restivus/issues                         "Restivus Issues"
-[reststop2]:            https://github.com/Differential/reststop2                                 "RestStop2"
-[reststop2-docs]:       http://github.differential.com/reststop2/                                 "RestStop2 Docs"
+[alanning-roles]: https://github.com/alanning/meteor-roles "Meteor Roles Package"
+[apidoc]: http://apidocjs.com/ "apiDoc"
+[cors]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Access_control_CORS "Cross Origin Resource Sharing (CORS)"
+[iron-router]: https://github.com/iron-meteor/iron-router "Iron Router"
+[jsend]: http://labs.omniti.com/labs/jsend "JSend REST API Standard"
+[json-routes]: https://github.com/stubailo/meteor-rest/tree/master/packages/json-routes "Simple JSON Routes"
+[node-request]: https://nodejs.org/api/http.html#http_http_incomingmessage "Node Request Object Docs"
+[node-response]: https://nodejs.org/api/http.html#http_class_http_serverresponse "Node Response Object Docs"
+[restivus-change-log]: https://github.com/kahmali/meteor-restivus/blob/master/CHANGELOG.md "Restivus Change Log"
+[restivus-issues]: https://github.com/kahmali/meteor-restivus/issues "Restivus Issues"
+[reststop2]: https://github.com/Differential/reststop2 "RestStop2"
+[reststop2-docs]: http://github.differential.com/reststop2/ "RestStop2 Docs"
